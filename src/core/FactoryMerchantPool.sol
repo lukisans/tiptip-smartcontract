@@ -9,7 +9,7 @@ import {MerchantPool} from "./MerchantPool.sol";
 contract FactoryMerchantPool is Ownable {
     // Immutable addresses for cloning
     address public immutable merchantPoolImplementation;
-    address public immutable idrxToken;
+    address public immutable token;
     address public immutable stakingContract;
     address public immutable platformAddress;
 
@@ -43,7 +43,7 @@ contract FactoryMerchantPool is Ownable {
         if (_idrx == address(0)) revert FactoryMerchantPool__idrxAddressCannotBeZero();
 
         merchantPoolImplementation = address(new MerchantPool());
-        idrxToken = _idrx;
+        token = _idrx;
         stakingContract = _staking;
         platformAddress = _ownerPlatform;
     }
@@ -60,7 +60,7 @@ contract FactoryMerchantPool is Ownable {
 
         address newPool = Clones.clone(merchantPoolImplementation);
 
-        MerchantPool(newPool).initialize(merchant, platformAddress, stakingContract, idrxToken, defaultBaseFee);
+        MerchantPool(newPool).initialize(merchant, platformAddress, stakingContract, token, defaultBaseFee);
 
         merchantToPool[merchant] = newPool;
         emit MerchantPoolCreated(merchant, newPool);

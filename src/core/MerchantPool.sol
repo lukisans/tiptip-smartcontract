@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Test.sol";
-
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IStakingIDRX} from "../interfaces/IStakingIDRX.sol";
@@ -32,7 +30,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
     // Variables
     address public platformAddress;
     address public merchantOwnerAddress;
-    IERC20 public idrxToken;
+    IERC20 public token;
     IStakingIDRX public stakingContract;
 
     // Storage variables
@@ -111,7 +109,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
 
         merchantOwnerAddress = _merchant;
         platformAddress = _platform;
-        idrxToken = IERC20(_idrx);
+        token = IERC20(_idrx);
         stakingContract = IStakingIDRX(_staking);
         baseFee = _baseFee;
 
@@ -140,6 +138,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
             uint256 volumeDiscount = totalVolumeProcessed / VOLUME_TRESHOLD;
 
             unchecked {
+                //
                 feeRate = baseFee > volumeDiscount * FEE_DECREMENT
                     ? baseFee - volumeDiscount * FEE_DECREMENT
                     : MIN_REGULER_FEE;
@@ -165,7 +164,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
     function tip(uint256 amount) external {
         if (amount == 0) revert MerchantPool__amountTipMustBeMoreThanMinimal();
 
-        idrxToken.safeTransferFrom(msg.sender, address(this), amount);
+        token.safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 fee = calculateFee(amount);
         uint256 merchantAmount;
@@ -176,10 +175,10 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
         }
 
         if (fee > 0) {
-            idrxToken.safeTransfer(platformAddress, fee);
+            token.safeTransfer(platformAddress, fee);
         }
 
-        idrxToken.safeTransfer(merchantOwnerAddress, merchantAmount);
+        token.safeTransfer(merchantOwnerAddress, merchantAmount);
         emit TipReceived(msg.sender, amount, fee);
     }
 
@@ -196,8 +195,8 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
         (,, uint256 duration) = stakingContract.stakeTypes(stakeType);
         if (duration == 0) revert MerchantPool__invalidStakeType();
 
-        idrxToken.safeTransferFrom(msg.sender, address(this), amount);
-        idrxToken.safeIncreaseAllowance(address(stakingContract), amount);
+        token.safeTransferFrom(msg.sender, address(this), amount);
+        token.safeIncreaseAllowance(address(stakingContract), amount);
 
         uint256 countStakeBefore = stakingContract.stakeCount();
         // Create new stake
@@ -230,15 +229,14 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
         if (!stake.isActive) revert MerchantPool__stakingNotActive();
 
         // Track initial balance before claiming
-        uint256 initialBalance = idrxToken.balanceOf(address(this));
+        uint256 initialBalance = token.balanceOf(address(this));
 
         // Claim rewards and principal from staking contract
         stakingContract.claimStakeReward(merchantStakingId);
-        console.log(idrxToken.balanceOf(address(stakingContract)));
         stakingContract.claimStakePrincipal(merchantStakingId);
 
         // Calculate amounts to distribute
-        uint256 finalBalance = idrxToken.balanceOf(address(this));
+        uint256 finalBalance = token.balanceOf(address(this));
         uint256 totalReceived = finalBalance - initialBalance;
         uint256 principalAmount = stake.stakeAmount;
 
@@ -257,12 +255,12 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
         // Transfer principal and merchant's portion of rewards to merchant
         uint256 merchantAmount = principalAmount + merchantReward;
         if (merchantAmount > 0) {
-            idrxToken.safeTransfer(merchantOwnerAddress, merchantAmount);
+            token.safeTransfer(merchantOwnerAddress, merchantAmount);
         }
 
         // Transfer platform's portion of rewards to platform
         if (platformReward > 0) {
-            idrxToken.safeTransfer(platformAddress, platformReward);
+            token.safeTransfer(platformAddress, platformReward);
         }
 
         emit StakingWithdrawn(merchantStakingId, principalAmount, merchantReward, platformReward);
@@ -274,10 +272,10 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
      */
     function withdraw(uint256 amount) external onlyOwner {
         if (amount == 0) revert MerchantPool__amountMustBeMoreThanZero();
-        uint256 availableBalance = idrxToken.balanceOf(address(this));
+        uint256 availableBalance = token.balanceOf(address(this));
         if (availableBalance < amount) revert MerchantPool__insufficientBalance();
 
-        idrxToken.safeTransfer(merchantOwnerAddress, amount);
+        token.safeTransfer(merchantOwnerAddress, amount);
         emit MerchantWithdrawal(amount);
     }
 

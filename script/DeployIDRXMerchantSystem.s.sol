@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Script} from "forge-std/Script.sol";
-import {MockIDRX} from "../src/mocks/MockIDRX.sol";
+import {MockToken} from "../src/mocks/MockToken.sol";
 import {MockStakingIDRX} from "../src/mocks/MockStakingIDRX.sol";
 import {FactoryMerchantPool} from "../src/core/FactoryMerchantPool.sol";
 import {console2} from "forge-std/console2.sol";
@@ -17,6 +17,8 @@ contract DeployIDRXMerchantSystem is Script {
     address public idrxTokenAddress;
     address public stakingContractAddress;
     address public platformOwnerAddress;
+
+    uint256 public constant STAKING_PLATFORM_REWARD = 100_000_000 * 10 ** 18; // 10M tokens
 
     // Deployment choice
     enum DeploymentEnvironment {
@@ -86,14 +88,16 @@ contract DeployIDRXMerchantSystem is Script {
         console2.log("Deploying complete system for local development...");
 
         // Deploy mock IDRX token
-        MockIDRX idrxToken = new MockIDRX();
-        console2.log("MockIDRX deployed at:", address(idrxToken));
+        MockToken idrxToken = new MockToken("Mock IDRX Token", "mIDRX", 18);
+        console2.log("MockToken deployed at:", address(idrxToken));
         idrxTokenAddress = address(idrxToken);
 
         // Deploy mock staking contract
         MockStakingIDRX stakingContract = new MockStakingIDRX(idrxTokenAddress);
         console2.log("MockStakingIDRX deployed at:", address(stakingContract));
         stakingContractAddress = address(stakingContract);
+
+        idrxToken.mint(stakingContractAddress, STAKING_PLATFORM_REWARD);
 
         // Deploy factory contract
         FactoryMerchantPool factory =

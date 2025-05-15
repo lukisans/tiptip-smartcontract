@@ -15,7 +15,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     using SafeERC20 for IERC20;
 
     // Immutable storage for gas savings
-    IERC20 public immutable idrxToken;
+    IERC20 public immutable token;
 
     // Counters
     uint256 public stakeCount;
@@ -29,7 +29,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     error MockStakingIDRX__StakeAmountZero();
     error MockStakingIDRX__InvalidStakeType();
     error MockStakingIDRX__StakeTypeNotConfigured();
-    error MockStakingIDRX__NotStakeOwner();
+    error MockStakingIDRX__NotStakeOwner(address);
     error MockStakingIDRX__StakeNotActive();
     error MockStakingIDRX__StakeStillLocked();
     error MockStakingIDRX__RewardAlreadyClaimed();
@@ -57,8 +57,8 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     event stakeTypeModified(uint256 index, uint256 rewardModifier, uint256 durationModifier, uint256 duration);
     event newUnbondingPeriod(uint256 p);
 
-    constructor(address _idrxToken) Ownable(msg.sender) {
-        idrxToken = IERC20(_idrxToken);
+    constructor(address _token) Ownable(msg.sender) {
+        token = IERC20(_token);
 
         setStakeType(0, 380, 100, 30 days);
         setStakeType(1, 400, 100, 90 days);
@@ -78,7 +78,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     }
 
     function stakeToken() external view override returns (address) {
-        return address(idrxToken);
+        return address(token);
     }
 
     function owner() public view override returns (address) {
@@ -92,7 +92,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
         StakeType memory sType = stakeTypes[stakeType];
         if (sType.duration == 0) revert MockStakingIDRX__StakeTypeNotConfigured();
 
-        idrxToken.safeTransferFrom(msg.sender, address(this), amount);
+        token.safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 rewardAmount = calculateReward(amount, sType.rewardModifier, sType.duration);
         uint256 unlockTime = block.timestamp + sType.duration;
@@ -133,7 +133,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     function claimStakeReward(uint256 stakeId) external override {
         Stake storage stake = stakes[stakeId];
 
-        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner();
+        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner(stake.staker);
         if (!stake.isActive) revert MockStakingIDRX__StakeNotActive();
         if (block.timestamp < stake.unlockTimestamp) revert MockStakingIDRX__StakeStillLocked();
         if (stake.claimedAmount > 0) revert MockStakingIDRX__RewardAlreadyClaimed();
@@ -141,7 +141,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
         stake.claimedAmount = stake.rewardAmount;
         stake.claimedTimestamp = block.timestamp;
 
-        idrxToken.safeTransfer(msg.sender, stake.rewardAmount);
+        token.safeTransfer(msg.sender, stake.rewardAmount);
 
         emit claimReward(stakeId, msg.sender, stake.rewardAmount, block.timestamp);
     }
@@ -149,7 +149,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     function claimStakePrincipal(uint256 stakeId) external override {
         Stake storage stake = stakes[stakeId];
 
-        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner();
+        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner(stake.staker);
         if (!stake.isActive) revert MockStakingIDRX__StakeNotActive();
         if (block.timestamp < stake.unlockTimestamp) revert MockStakingIDRX__StakeStillLocked();
 
@@ -157,7 +157,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
 
         stake.isActive = false;
 
-        idrxToken.safeTransfer(msg.sender, principalAmount);
+        token.safeTransfer(msg.sender, principalAmount);
 
         emit withdrawPrincipal(stakeId, msg.sender, principalAmount, block.timestamp);
     }
@@ -165,7 +165,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     function unbondStake(uint256 stakeId) external {
         Stake storage stake = stakes[stakeId];
 
-        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner();
+        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner(stake.staker);
         if (!stake.isActive) revert MockStakingIDRX__StakeNotActive();
         if (stake.isUnbonding) revert MockStakingIDRX__AlreadyUnbonding();
         if (block.timestamp >= stake.unlockTimestamp) revert MockStakingIDRX__StakeAlreadyUnlocked();
@@ -179,7 +179,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
     function claimStakePrincipalUnbonded(uint256 stakeId) external {
         Stake storage stake = stakes[stakeId];
 
-        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner();
+        if (stake.staker != msg.sender) revert MockStakingIDRX__NotStakeOwner(stake.staker);
         if (!stake.isActive) revert MockStakingIDRX__StakeNotActive();
         if (!stake.isUnbonding) revert MockStakingIDRX__NotInUnbonding();
         if (block.timestamp < stake.unbondingTimestamp) revert MockStakingIDRX__UnbondingNotOver();
@@ -189,7 +189,7 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
         stake.isActive = false;
         stake.isUnbonding = false;
 
-        idrxToken.safeTransfer(msg.sender, principalAmount);
+        token.safeTransfer(msg.sender, principalAmount);
 
         emit withdrawPrincipalUnbonded(stakeId, msg.sender, principalAmount, block.timestamp);
     }

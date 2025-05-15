@@ -2,16 +2,18 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import "../src/mocks/MockIDRX.sol";
+import "../src/mocks/MockToken.sol";
 import "../src/mocks/MockStakingIDRX.sol";
 
 contract MockStakingIDRXTest is Test {
-    MockIDRX public token;
+    MockToken public token;
     MockStakingIDRX public staking;
 
     address public deployer;
     address public user1;
     address public user2;
+
+    uint256 STAKING_REWARD_BANK = 10_000_000 * 1e18;
 
     // Setup test environment
     function setUp() public {
@@ -20,14 +22,15 @@ contract MockStakingIDRXTest is Test {
         user2 = makeAddr("user2");
 
         // Deploy token
-        token = new MockIDRX();
+        token = new MockToken("Mock IDRX Token", "mIDRX", 18);
 
         // Deploy staking contract
         staking = new MockStakingIDRX(address(token));
 
         // Allocate tokens for testing
-        token.transfer(user1, 1_000_000 * 1e18);
-        token.transfer(user2, 500_000 * 1e18);
+        token.mint(user1, 1_000_000 * 1e18);
+        token.mint(user2, 500_000 * 1e18);
+        token.mint(address(staking), STAKING_REWARD_BANK);
     }
 
     // Test creating a new stake
@@ -44,16 +47,16 @@ contract MockStakingIDRXTest is Test {
         vm.stopPrank();
 
         // Check stake count increased
-        assertEq(staking.stakeCount(), 1);
+        assertEq(staking.stakeCount(), 2);
 
         // Check stake details
         uint256[] memory stakeIds = new uint256[](1);
-        stakeIds[0] = 0;
+        stakeIds[0] = 1;
 
         IStakingIDRX.Stake[] memory stakes = staking.getStake(stakeIds);
         IStakingIDRX.Stake memory stake = stakes[0];
 
-        assertEq(stake.stakeId, 0);
+        assertEq(stake.stakeId, 1);
         assertEq(stake.stakeType, stakeType);
         assertEq(stake.staker, user1);
         assertTrue(stake.isActive);
@@ -61,13 +64,13 @@ contract MockStakingIDRXTest is Test {
         assertEq(stake.stakeAmount, stakeAmount);
 
         // Check token transfer occurred
-        assertEq(token.balanceOf(address(staking)), stakeAmount);
+        assertEq(token.balanceOf(address(staking)), stakeAmount + STAKING_REWARD_BANK);
         assertEq(token.balanceOf(user1), 900_000 * 1e18);
     }
 
     // Test stake rewards calculation (1 month stake)
     function testStakeReward() public {
-        uint256 stakeAmount = 100_000 * 1e18;
+        uint256 stakeAmount = 1_000_000 * 1e18;
         uint256 stakeType = 0; // 1 month
 
         // Get stake type details
@@ -84,7 +87,7 @@ contract MockStakingIDRXTest is Test {
 
         // Check reward matches expected
         uint256[] memory stakeIds = new uint256[](1);
-        stakeIds[0] = 0;
+        stakeIds[0] = 1;
 
         IStakingIDRX.Stake[] memory stakes = staking.getStake(stakeIds);
         IStakingIDRX.Stake memory stake = stakes[0];
@@ -94,7 +97,7 @@ contract MockStakingIDRXTest is Test {
 
     // Test claiming rewards after lock period
     function testClaimStakeReward() public {
-        uint256 stakeAmount = 100_000 * 1e18;
+        uint256 stakeAmount = 1_000_000 * 1e18;
         uint256 stakeType = 0; // 1 month
 
         // Create stake
@@ -108,7 +111,7 @@ contract MockStakingIDRXTest is Test {
 
         // Get expected reward
         uint256[] memory stakeIds = new uint256[](1);
-        stakeIds[0] = 0;
+        stakeIds[0] = 1;
         IStakingIDRX.Stake[] memory stakes = staking.getStake(stakeIds);
         uint256 expectedReward = stakes[0].rewardAmount;
 
@@ -116,7 +119,7 @@ contract MockStakingIDRXTest is Test {
         uint256 balanceBefore = token.balanceOf(user1);
 
         // Claim reward
-        staking.claimStakeReward(0);
+        staking.claimStakeReward(1);
         vm.stopPrank();
 
         // Check rewards claimed
@@ -131,7 +134,7 @@ contract MockStakingIDRXTest is Test {
 
     // Test claiming principal after lock period
     function testClaimStakePrincipal() public {
-        uint256 stakeAmount = 100_000 * 1e18;
+        uint256 stakeAmount = 1_000_000 * 1e18;
         uint256 stakeType = 0; // 1 month
 
         // Create stake
@@ -147,7 +150,7 @@ contract MockStakingIDRXTest is Test {
         uint256 balanceBefore = token.balanceOf(user1);
 
         // Claim principal
-        staking.claimStakePrincipal(0);
+        staking.claimStakePrincipal(1);
         vm.stopPrank();
 
         // Check principal returned
@@ -156,14 +159,14 @@ contract MockStakingIDRXTest is Test {
 
         // Verify stake state
         uint256[] memory stakeIds = new uint256[](1);
-        stakeIds[0] = 0;
+        stakeIds[0] = 1;
         IStakingIDRX.Stake[] memory stakes = staking.getStake(stakeIds);
         assertFalse(stakes[0].isActive);
     }
 
     // Test unbonding before lock period
     function testUnbondStake() public {
-        uint256 stakeAmount = 100_000 * 1e18;
+        uint256 stakeAmount = 1_000_000 * 1e18;
         uint256 stakeType = 2; // 6 months
 
         // Create stake
@@ -173,11 +176,11 @@ contract MockStakingIDRXTest is Test {
 
         // Unbond after 1 month
         vm.warp(block.timestamp + 30 days);
-        staking.unbondStake(0);
+        staking.unbondStake(1);
 
         // Check stake state
         uint256[] memory stakeIds = new uint256[](1);
-        stakeIds[0] = 0;
+        stakeIds[0] = 1;
         IStakingIDRX.Stake[] memory stakes = staking.getStake(stakeIds);
         assertTrue(stakes[0].isUnbonding);
         assertEq(stakes[0].unbondingTimestamp, block.timestamp + staking.unbondingPeriod());
@@ -186,7 +189,7 @@ contract MockStakingIDRXTest is Test {
         vm.warp(block.timestamp + staking.unbondingPeriod() + 1);
 
         // Claim unbonded principal
-        staking.claimStakePrincipalUnbonded(0);
+        staking.claimStakePrincipalUnbonded(1);
         vm.stopPrank();
 
         // Check principal returned and state updated

@@ -2,10 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import {MockIDRX} from "../src/mocks/MockIDRX.sol";
+import {MockToken} from "../src/mocks/MockToken.sol";
 import {MockStakingIDRX} from "../src/mocks/MockStakingIDRX.sol";
 import {FactoryMerchantPool} from "../src/core/FactoryMerchantPool.sol";
 import {MerchantPool} from "../src/core/MerchantPool.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title IDRXMerchantSystemTest
@@ -14,7 +15,7 @@ import {MerchantPool} from "../src/core/MerchantPool.sol";
  */
 contract IDRXMerchantSystemTest is Test {
     // Contracts
-    MockIDRX public idrxToken;
+    MockToken public token;
     MockStakingIDRX public stakingContract;
     FactoryMerchantPool public factory;
 
@@ -45,22 +46,23 @@ contract IDRXMerchantSystemTest is Test {
         vm.startPrank(deployer);
 
         // Deploy contracts
-        idrxToken = new MockIDRX();
-        stakingContract = new MockStakingIDRX(address(idrxToken));
-        factory = new FactoryMerchantPool(address(idrxToken), address(stakingContract), platformOwner);
+        token = new MockToken("Mock IDRX Token", "mIDRX", 18);
+        stakingContract = new MockStakingIDRX(address(token));
+        factory = new FactoryMerchantPool(address(token), address(stakingContract), platformOwner);
 
         // Distribute tokens for testing
-        idrxToken.mint(merchant1, INITIAL_TOKEN_AMOUNT);
-        idrxToken.mint(merchant2, INITIAL_TOKEN_AMOUNT);
-        idrxToken.mint(customer1, INITIAL_TOKEN_AMOUNT);
-        idrxToken.mint(customer2, INITIAL_TOKEN_AMOUNT);
+        token.mint(merchant1, INITIAL_TOKEN_AMOUNT);
+        token.mint(merchant2, INITIAL_TOKEN_AMOUNT);
+        token.mint(customer1, INITIAL_TOKEN_AMOUNT);
+        token.mint(customer2, INITIAL_TOKEN_AMOUNT);
+        token.mint(address(stakingContract), INITIAL_TOKEN_AMOUNT * 10);
 
         vm.stopPrank();
     }
 
     // Test factory deployment and initial configuration
     function testFactoryDeployment() public view {
-        assertEq(factory.idrxToken(), address(idrxToken), "IDRX token address mismatch");
+        assertEq(factory.token(), address(token), "IDRX token address mismatch");
         assertEq(factory.stakingContract(), address(stakingContract), "Staking contract address mismatch");
         assertEq(factory.platformAddress(), platformOwner, "Platform owner address mismatch");
         assertEq(factory.defaultBaseFee(), 400, "Default base fee should be 4%");
@@ -85,7 +87,7 @@ contract IDRXMerchantSystemTest is Test {
         assertEq(pool.merchantOwnerAddress(), merchant1, "Pool merchant owner should be merchant1");
         assertEq(pool.platformAddress(), platformOwner, "Pool platform address should be platformOwner");
         assertEq(address(pool.stakingContract()), address(stakingContract), "Pool staking contract should match");
-        assertEq(address(pool.idrxToken()), address(idrxToken), "Pool IDRX token should match");
+        assertEq(address(pool.token()), address(token), "Pool IDRX token should match");
         assertEq(pool.baseFee(), factory.defaultBaseFee(), "Pool base fee should match factory default");
         assertEq(pool.owner(), merchant1, "Pool owner should be merchant1");
     }
@@ -132,7 +134,7 @@ contract IDRXMerchantSystemTest is Test {
 
     // Test updating default fee
     function testUpdateDefaultFee() public {
-        uint96 newFee = 500; // 5%
+        uint96 newFee = 450; // 5%
 
         // Only owner should be able to update fee
         vm.prank(merchant1);
@@ -160,12 +162,12 @@ contract IDRXMerchantSystemTest is Test {
         MerchantPool pool = MerchantPool(poolAddress);
 
         // Get initial balances
-        uint256 initialMerchantBalance = idrxToken.balanceOf(merchant1);
-        uint256 initialPlatformBalance = idrxToken.balanceOf(platformOwner);
+        uint256 initialMerchantBalance = token.balanceOf(merchant1);
+        uint256 initialPlatformBalance = token.balanceOf(platformOwner);
 
         // Customer approves and tips
         vm.startPrank(customer1);
-        idrxToken.approve(poolAddress, TIP_AMOUNT);
+        token.approve(poolAddress, TIP_AMOUNT);
         pool.tip(TIP_AMOUNT);
         vm.stopPrank();
 
@@ -176,13 +178,11 @@ contract IDRXMerchantSystemTest is Test {
 
         // Verify balances after tip
         assertEq(
-            idrxToken.balanceOf(merchant1),
+            token.balanceOf(merchant1),
             initialMerchantBalance + expectedMerchantAmount,
             "Merchant should receive tip minus fee"
         );
-        assertEq(
-            idrxToken.balanceOf(platformOwner), initialPlatformBalance + expectedFee, "Platform should receive fee"
-        );
+        assertEq(token.balanceOf(platformOwner), initialPlatformBalance + expectedFee, "Platform should receive fee");
 
         // Verify volume tracking
         assertEq(uint256(pool.totalVolumeProcessed()), TIP_AMOUNT, "Volume should be tracked correctly");
@@ -203,7 +203,7 @@ contract IDRXMerchantSystemTest is Test {
 
         // Merchant stakes for premium
         vm.startPrank(merchant1);
-        idrxToken.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
+        token.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
         pool.stakeForPremium(PREMIUM_STAKE_AMOUNT, 0); // 30-day stake
         vm.stopPrank();
 
@@ -233,7 +233,7 @@ contract IDRXMerchantSystemTest is Test {
 
         // Merchant stakes for premium
         vm.startPrank(merchant1);
-        idrxToken.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
+        token.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
         pool.stakeForPremium(PREMIUM_STAKE_AMOUNT, 0); // 30-day stake
 
         // Record staking ID and expiry
@@ -247,8 +247,8 @@ contract IDRXMerchantSystemTest is Test {
         vm.warp(stakeExpiry + 1);
 
         // Get balances before withdrawal
-        uint256 merchantBalanceBefore = idrxToken.balanceOf(merchant1);
-        uint256 platformBalanceBefore = idrxToken.balanceOf(platformOwner);
+        uint256 merchantBalanceBefore = token.balanceOf(merchant1);
+        uint256 platformBalanceBefore = token.balanceOf(platformOwner);
 
         // Withdraw stake
         pool.withdrawStake();
@@ -260,12 +260,12 @@ contract IDRXMerchantSystemTest is Test {
 
         // Verify merchant received principal and most rewards
         assertTrue(
-            idrxToken.balanceOf(merchant1) > merchantBalanceBefore + PREMIUM_STAKE_AMOUNT,
+            token.balanceOf(merchant1) > merchantBalanceBefore + PREMIUM_STAKE_AMOUNT,
             "Merchant should receive principal plus some rewards"
         );
 
         // Verify platform received some rewards
-        assertTrue(idrxToken.balanceOf(platformOwner) > platformBalanceBefore, "Platform should receive some rewards");
+        assertTrue(token.balanceOf(platformOwner) > platformBalanceBefore, "Platform should receive some rewards");
     }
 
     // Test volume discount effect on fees
@@ -282,21 +282,12 @@ contract IDRXMerchantSystemTest is Test {
         uint256 largeVolume = 1_000_000 * 10 ** 18; // 1M tokens
 
         // Manually set volume processed (for testing)
-        vm.store(
-            poolAddress,
-            bytes32(uint256(2)), // slot for totalVolumeProcessed
-            bytes32(uint256(largeVolume))
-        );
+        _simulateVolume(customer1, poolAddress, largeVolume);
 
         // Fee should now be reduced by 10 basis points (3.9%)
         assertEq(pool.getCurrentFeeRate(), 390, "Fee should be reduced after volume discount");
 
-        // Process more volume to trigger additional discount
-        vm.store(
-            poolAddress,
-            bytes32(uint256(2)), // slot for totalVolumeProcessed
-            bytes32(uint256(largeVolume * 5))
-        );
+        _simulateVolume(customer1, poolAddress, largeVolume * 4);
 
         // Fee should now be reduced by 50 basis points (3.5%)
         assertEq(pool.getCurrentFeeRate(), 350, "Fee should be further reduced after more volume");
@@ -311,16 +302,23 @@ contract IDRXMerchantSystemTest is Test {
 
         // Try to stake below minimum
         vm.startPrank(merchant1);
-        idrxToken.approve(poolAddress, 1_000_000 * 10 ** 18); // Only 1M tokens
+        token.approve(poolAddress, 1_000_000 * 10 ** 18); // Only 1M tokens
 
         vm.expectRevert(MerchantPool.MerchantPool__stakeNotMeetMinimalAmount.selector);
         pool.stakeForPremium(1_000_000 * 10 ** 18, 0);
 
         // Try invalid stake type
-        idrxToken.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
+        token.approve(poolAddress, PREMIUM_STAKE_AMOUNT);
         vm.expectRevert(MerchantPool.MerchantPool__invalidStakeType.selector);
         pool.stakeForPremium(PREMIUM_STAKE_AMOUNT, 4); // Invalid type
 
+        vm.stopPrank();
+    }
+
+    function _simulateVolume(address from, address to, uint256 volume) internal {
+        vm.startPrank(from);
+        token.approve(to, volume);
+        MerchantPool(to).tip(volume);
         vm.stopPrank();
     }
 }

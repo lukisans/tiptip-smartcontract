@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Script} from "forge-std/Script.sol";
 import {FactoryMerchantPool} from "../src/core/FactoryMerchantPool.sol";
 import {MerchantPool} from "../src/core/MerchantPool.sol";
-import {MockIDRX} from "../src/mocks/MockIDRX.sol";
+import {MockToken} from "../src/mocks/MockToken.sol";
 import {MockStakingIDRX} from "../src/mocks/MockStakingIDRX.sol";
 import {console2} from "forge-std/console2.sol";
 
@@ -14,7 +14,7 @@ import {console2} from "forge-std/console2.sol";
  * @dev Tests basic contract interactions after deployment
  */
 contract TestDeployment is Script {
-    MockIDRX public idrxToken;
+    MockToken public idrxToken;
     MockStakingIDRX public stakingContract;
     FactoryMerchantPool public factory;
     address merchantAddress;
@@ -30,7 +30,7 @@ contract TestDeployment is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy contracts
-        idrxToken = new MockIDRX();
+        idrxToken = new MockToken("Mock IDRX Token", "mIDRX", 18);
         stakingContract = new MockStakingIDRX(address(idrxToken));
         factory = new FactoryMerchantPool(address(idrxToken), address(stakingContract), platformOwnerAddress);
 
