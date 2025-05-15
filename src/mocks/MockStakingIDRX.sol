@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -63,6 +64,9 @@ contract MockStakingIDRX is IStakingIDRX, Ownable {
         setStakeType(1, 400, 100, 90 days);
         setStakeType(2, 432, 100, 180 days);
         setStakeType(3, 456, 100, 365 days);
+
+        // Make to 1, 0 is sign of has no staking
+        stakeCount = 1;
     }
 
     function isStakingContract() external pure returns (bool) {

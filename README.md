@@ -1,66 +1,103 @@
-## Foundry
+# IDRX Merchant System Deployment Guide
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This guide explains how to deploy the IDRX Merchant System contracts using Foundry.
 
-Foundry consists of:
+## Prerequisites
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+1. Install [Foundry](https://book.getfoundry.sh/getting-started/installation)
+2. Set up environment variables (create a `.env` file)
 
-## Documentation
+## Environment Setup
 
-https://book.getfoundry.sh/
+Create a `.env` file with the following variables:
 
-## Usage
+```bash
+# Required for all environments
+PRIVATE_KEY=your_private_key_here
 
-### Build
+# Testnet configuration
+TESTNET_IDRX_ADDRESS=0x...
+TESTNET_STAKING_ADDRESS=0x...
+TESTNET_PLATFORM_OWNER=0x...
 
-```shell
-$ forge build
+# Mainnet configuration
+MAINNET_IDRX_ADDRESS=0x...
+MAINNET_STAKING_ADDRESS=0x...
+MAINNET_PLATFORM_OWNER=0x...
 ```
 
-### Test
+Load the environment variables:
 
-```shell
-$ forge test
+```bash
+source .env
 ```
 
-### Format
+## Deployment Options
 
-```shell
-$ forge fmt
+### Local Development
+
+Deploy the complete system (MockIDRX, MockStakingIDRX, and FactoryMerchantPool):
+
+```bash
+forge script script/DeployIDRXMerchantSystem.s.sol:DeployIDRXMerchantSystem --sig "run(uint8)" 0 -vvv
 ```
 
-### Gas Snapshots
+### Testnet Deployment
 
-```shell
-$ forge snapshot
+Deploy only the FactoryMerchantPool using existing token and staking contracts:
+
+```bash
+forge script script/DeployIDRXMerchantSystem.s.sol:DeployIDRXMerchantSystem --sig "run(uint8)" 1 --rpc-url $TESTNET_RPC_URL --broadcast -vvv
 ```
 
-### Anvil
+### Mainnet Deployment
 
-```shell
-$ anvil
+Deploy only the FactoryMerchantPool using existing token and staking contracts:
+
+```bash
+forge script script/DeployIDRXMerchantSystem.s.sol:DeployIDRXMerchantSystem --sig "run(uint8)" 2 --rpc-url $MAINNET_RPC_URL --broadcast -vvv
 ```
 
-### Deploy
+## Contract Verification
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+After deployment, verify the contracts on Etherscan:
+
+```bash
+# Verify FactoryMerchantPool
+forge verify-contract --chain-id [CHAIN_ID] --compiler-version [VERSION] [CONTRACT_ADDRESS] src/FactoryMerchantPool.sol:FactoryMerchantPool --constructor-args $(cast abi-encode "constructor(address,address,address)" [IDRX_ADDRESS] [STAKING_ADDRESS] [PLATFORM_OWNER_ADDRESS]) --etherscan-api-key [YOUR_ETHERSCAN_API_KEY]
 ```
 
-### Cast
+## Testing the Deployment
 
-```shell
-$ cast <subcommand>
-```
+After deployment, you can interact with the contracts:
 
-### Help
+1. Create a merchant pool:
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+   ```bash
+   cast send [FACTORY_ADDRESS] "createMerchantPool(address)" [MERCHANT_ADDRESS] --private-key $PRIVATE_KEY
+   ```
+
+2. Check if a merchant has a pool:
+
+   ```bash
+   cast call [FACTORY_ADDRESS] "hasMerchantPool(address)" [MERCHANT_ADDRESS]
+   ```
+
+3. Get a merchant's pool address:
+   ```bash
+   cast call [FACTORY_ADDRESS] "getMerchantPool(address)" [MERCHANT_ADDRESS]
+   ```
+
+## Contract Architecture
+
+- `MockIDRX`: ERC20 token for testing
+- `MockStakingIDRX`: Mock staking contract for IDRX tokens
+- `FactoryMerchantPool`: Factory to create merchant-specific pools
+- `MerchantPool`: Manages merchant-specific tipping and staking mechanics
+
+## Security Considerations
+
+1. Always verify contract addresses before deployment
+2. Use a dedicated wallet for deployment
+3. Test thoroughly on testnet before mainnet deployment
+4. Consider a security audit before mainnet deployment

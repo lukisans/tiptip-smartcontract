@@ -60,7 +60,7 @@ contract FactoryMerchantPool is Ownable {
 
         address newPool = Clones.clone(merchantPoolImplementation);
 
-        MerchantPool(newPool).initialize(merchant, platformAddress, idrxToken, stakingContract, defaultBaseFee);
+        MerchantPool(newPool).initialize(merchant, platformAddress, stakingContract, idrxToken, defaultBaseFee);
 
         merchantToPool[merchant] = newPool;
         emit MerchantPoolCreated(merchant, newPool);

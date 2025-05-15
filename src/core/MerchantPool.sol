@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IStakingIDRX} from "../interfaces/IStakingIDRX.sol";
+import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
 /**
  * @title MerchantPool
@@ -12,7 +15,7 @@ import {IStakingIDRX} from "../interfaces/IStakingIDRX.sol";
  *         Merchants can receive tips, stake tokens to obtain premium fee discounts, and withdraw funds.
  *         The platform collects a small portion of staking rewards as its fee.
  */
-contract MerchantPool is Ownable {
+contract MerchantPool is Initializable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
 
     // Constants
@@ -80,7 +83,9 @@ contract MerchantPool is Ownable {
      * @dev Empty constructor for proxy pattern
      * @dev Note: This leaves the contract uninitialized and requires a call to initialize()
      */
-    constructor() Ownable(msg.sender) {}
+    constructor() {
+        _disableInitializers();
+    }
 
     /**
      * @dev Initializes the MerchantPool contract.
@@ -92,7 +97,7 @@ contract MerchantPool is Ownable {
      */
     function initialize(address _merchant, address _platform, address _staking, address _idrx, uint96 _baseFee)
         external
-        onlyOwner
+        initializer
     {
         if (initialized) revert MerchantPool__alreadyInitialized();
 
@@ -101,6 +106,8 @@ contract MerchantPool is Ownable {
         if (_staking == address(0)) revert MerchantPool__stakingContractAddressCannotBeZero();
         if (_idrx == address(0)) revert MerchantPool__idrxAddressCannotBeZero();
         if (_baseFee > FEE_PRECISION) revert MerchantPool__feeCannotExceed100Percent();
+
+        __Ownable_init(msg.sender);
 
         merchantOwnerAddress = _merchant;
         platformAddress = _platform;
@@ -190,7 +197,7 @@ contract MerchantPool is Ownable {
         if (duration == 0) revert MerchantPool__invalidStakeType();
 
         idrxToken.safeTransferFrom(msg.sender, address(this), amount);
-        idrxToken.approve(address(stakingContract), amount);
+        idrxToken.safeIncreaseAllowance(address(stakingContract), amount);
 
         uint256 countStakeBefore = stakingContract.stakeCount();
         // Create new stake
@@ -227,6 +234,7 @@ contract MerchantPool is Ownable {
 
         // Claim rewards and principal from staking contract
         stakingContract.claimStakeReward(merchantStakingId);
+        console.log(idrxToken.balanceOf(address(stakingContract)));
         stakingContract.claimStakePrincipal(merchantStakingId);
 
         // Calculate amounts to distribute
