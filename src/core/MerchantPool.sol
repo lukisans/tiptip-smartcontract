@@ -21,7 +21,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
     uint256 private constant VOLUME_TRESHOLD = 1_000_000 * 1e18;
     uint256 private constant FEE_DECREMENT = 10;
     uint256 private constant FEE_PRECISION = 10_000;
-    uint256 private constant MIN_REGULER_FEE = 200;
+    uint256 private constant LIMIT_DECREAMENT_FEE = 200;
     uint256 private constant PREMIUM_FEE = 100;
     uint256 private constant PLATFORM_FIXED_APR = 300; // 3.00% APR for platform
 
@@ -132,17 +132,18 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
      * @dev Get current fee rate
      * @return Currentfee rate (scaled by FEE_PRECISION)
      */
-    function _computeFeeRate() internal view returns (uint256) {
+    function _computeFeeRate() internal returns (uint256) {
         uint256 feeRate = PREMIUM_FEE;
         if (!hasPremium()) {
             uint256 volumeDiscount = totalVolumeProcessed / VOLUME_TRESHOLD;
+            totalVolumeProcessed = 0;
 
             unchecked {
-                //
-                feeRate = baseFee > volumeDiscount * FEE_DECREMENT
-                    ? baseFee - volumeDiscount * FEE_DECREMENT
-                    : MIN_REGULER_FEE;
+                feeRate = baseFee == LIMIT_DECREAMENT_FEE
+                    ? LIMIT_DECREAMENT_FEE
+                    : baseFee - ((volumeDiscount * FEE_PRECISION) / 1_000);
             }
+            baseFee = uint96(feeRate);
         }
         return feeRate;
     }
@@ -152,7 +153,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
      * @param amount Amount to calculate fee for
      * @return fee Fee Amount
      */
-    function calculateFee(uint256 amount) public view returns (uint256) {
+    function calculateFee(uint256 amount) public returns (uint256) {
         uint256 feeRate = _computeFeeRate();
         return (amount * feeRate) / FEE_PRECISION;
     }
@@ -284,7 +285,7 @@ contract MerchantPool is Initializable, OwnableUpgradeable {
      * @dev Get current fee rate
      * @return Currentfee rate (scaled by FEE_PRECISION)
      */
-    function getCurrentFeeRate() external view returns (uint256) {
+    function getCurrentFeeRate() external returns (uint256) {
         return _computeFeeRate();
     }
 }

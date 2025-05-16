@@ -28,9 +28,9 @@ contract IDRXMerchantSystemTest is Test {
     address public customer2;
 
     // Constants
-    uint256 public constant INITIAL_TOKEN_AMOUNT = 10_000_000 * 10 ** 18; // 10M tokens
+    uint256 public constant INITIAL_TOKEN_AMOUNT = 100_000_000 * 10 ** 18; // 10M tokens
     uint256 public constant TIP_AMOUNT = 100_000 * 10 ** 18; // 100K tokens
-    uint256 public constant PREMIUM_STAKE_AMOUNT = 10_000_000 * 10 ** 18; // 10M tokens
+    uint256 public constant PREMIUM_STAKE_AMOUNT = 100_000_000 * 10 ** 18; // 10M tokens
 
     // Setup test environment
     function setUp() public {
@@ -291,6 +291,16 @@ contract IDRXMerchantSystemTest is Test {
 
         // Fee should now be reduced by 50 basis points (3.5%)
         assertEq(pool.getCurrentFeeRate(), 350, "Fee should be further reduced after more volume");
+
+        _simulateVolume(customer1, poolAddress, largeVolume * 15);
+
+        // Fee should now be reduced by 50 basis points (3.5%)
+        assertEq(pool.getCurrentFeeRate(), 200, "Fee should be further reduced after more volume");
+
+        _simulateVolume(customer1, poolAddress, largeVolume * 1);
+
+        // Fee should now be reduced by 50 basis points (3.5%)
+        assertEq(pool.getCurrentFeeRate(), 200, "Fee should not be further reduced after reach 2%");
     }
 
     // Test error cases for premium staking
